@@ -31,3 +31,15 @@ func (r *TransactionRepository) GetTransactionsByDescription(startDate, endDate 
 	err := r.db.Where("date BETWEEN? AND? AND description LIKE ?", startDate, endDate, "%"+description+"%").Find(&transactions).Error
 	return transactions, err
 }
+
+func (r *TransactionRepository) GetDistinctTransactionDescriptions(startDate, endDate time.Time) ([]string, error) {
+	var descriptions []string
+	if err := r.db.Model(&Transaction{}).
+		Where("date BETWEEN ? AND ?", startDate, endDate).
+		Distinct("description").
+		Order("description ASC").
+		Pluck("description", &descriptions).Error; err != nil {
+		return nil, err
+	}
+	return descriptions, nil
+}

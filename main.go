@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
 	"time"
@@ -11,8 +12,9 @@ import (
 func main() {
 
 	var (
-		db  *gorm.DB
-		err error
+		sqlDB *sql.DB
+		db    *gorm.DB
+		err   error
 	)
 
 	// Get the database connection
@@ -21,14 +23,37 @@ func main() {
 		return
 	}
 
+	// Defer the closing of the database connection
+	if sqlDB, err = db.DB(); err == nil {
+		defer sqlDB.Close()
+	}
+
 	// Get a repository instance
 	repository := NewTransactionRepository(db)
 
-	// Bracket november transactions
 	startDate, _ := time.Parse("2006-01-02", "2024-03-24")
 	endDate, _ := time.Parse("2006-01-02", "2024-03-29")
 
-	// Get transactions by date
+	printTransactionsByDateRange(repository, startDate, endDate)
+	printDistinctTransactionDescriptions(repository, startDate, endDate)
+}
+
+func printDistinctTransactionDescriptions(repository *TransactionRepository, startDate, endDate time.Time) {
+	descriptions, err := repository.GetDistinctTransactionDescriptions(startDate, endDate)
+	if err != nil {
+		log.Printf("Error getting distinct transaction descriptions: %v\n", err)
+		return
+	}
+
+	fmt.Printf("Distinct transaction descriptions between %s and %s:\n",
+		startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
+
+	for _, description := range descriptions {
+		fmt.Println(description)
+	}
+}
+
+func printTransactionsByDateRange(repository *TransactionRepository, startDate, endDate time.Time) {
 	transactions, err := repository.GetTransactionsByDate(startDate, endDate)
 
 	if err != nil {
@@ -38,11 +63,12 @@ func main() {
 
 	totalSpent := float64(0)
 
-	fmt.Printf("Transactions between %s and %s:\n", startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
+	fmt.Printf("Transactions between %s and %s:\n",
+		startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
 
 	fmt.Println("-----------------------------------------")
 	fmt.Printf("Description\tNet Amount\n")
-	// Print the transactions
+
 	for _, transaction := range transactions {
 		totalSpent += transaction.NetAmount
 		fmt.Printf("%s\t$%.2f\n", transaction.Description, transaction.NetAmount)

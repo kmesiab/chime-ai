@@ -1,6 +1,7 @@
 package main
 
 import (
+	"reflect"
 	"testing"
 	"time"
 
@@ -288,4 +289,229 @@ func TestGetTransactionsByDescription_StartDateAfterEndDate(t *testing.T) {
 	if len(transactions) != 0 {
 		t.Errorf("expected no transactions, got %d", len(transactions))
 	}
+}
+
+func TestGetDistinctTransactionDescriptions_DBError(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("failed to connect to database: %v", err)
+	}
+
+	if err := db.AutoMigrate(&Transaction{}); err != nil {
+		t.Fatalf("failed to migrate database schema: %v", err)
+	}
+
+	repo := NewTransactionRepository(db)
+
+	// Simulate a database error by closing the database connection
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("failed to get generic database object: %v", err)
+	}
+	sqlDB.Close()
+
+	startDate, _ := time.Parse("2006-01-02", "2023-01-01")
+	endDate, _ := time.Parse("2006-01-02", "2023-12-31")
+
+	_, err = repo.GetDistinctTransactionDescriptions(startDate, endDate)
+	if err == nil {
+		t.Errorf("expected an error due to closed database connection, got nil")
+	}
+}
+
+func TestGetDistinctTransactionDescriptions_DuplicateDescriptions(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("failed to connect to database: %v", err)
+	}
+
+	if err := db.AutoMigrate(&Transaction{}); err != nil {
+		t.Fatalf("failed to migrate database schema: %v", err)
+	}
+
+	repo := NewTransactionRepository(db)
+
+	// Seed the database with transactions having duplicate descriptions
+	transactions := []Transaction{
+		{Date: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC), Description: "Grocery Shopping", Type: "Purchase", Amount: 50.00, NetAmount: 50.00, SettleDate: time.Date(2023, 1, 2, 0, 0, 0, 0, time.UTC)},
+		{Date: time.Date(2023, 1, 5, 0, 0, 0, 0, time.UTC), Description: "Grocery Shopping", Type: "Purchase", Amount: 75.00, NetAmount: 75.00, SettleDate: time.Date(2023, 1, 6, 0, 0, 0, 0, time.UTC)},
+		{Date: time.Date(2023, 1, 10, 0, 0, 0, 0, time.UTC), Description: "Gas Station", Type: "Purchase", Amount: 40.00, NetAmount: 40.00, SettleDate: time.Date(2023, 1, 11, 0, 0, 0, 0, time.UTC)},
+	}
+	if err := db.Create(&transactions).Error; err != nil {
+		t.Fatalf("failed to seed database: %v", err)
+	}
+
+	startDate := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+	endDate := time.Date(2023, 1, 31, 0, 0, 0, 0, time.UTC)
+
+	descriptions, err := repo.GetDistinctTransactionDescriptions(startDate, endDate)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	expectedDescriptions := []string{"Grocery Shopping", "Gas Station"}
+	if len(descriptions) != len(expectedDescriptions) {
+		t.Errorf("expected %d distinct descriptions, got %d", len(expectedDescriptions), len(descriptions))
+	}
+
+	for _, expected := range expectedDescriptions {
+		found := false
+		for _, actual := range descriptions {
+			if actual == expected {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expected description '%s' not found in result", expected)
+		}
+	}
+}
+
+func TestGetDistinctTransactionDescriptions_NoTransactions(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("failed to connect to database: %v", err)
+	}
+
+	if err := db.AutoMigrate(&Transaction{}); err != nil {
+		t.Fatalf("failed to migrate database schema: %v", err)
+	}
+
+	repo := NewTransactionRepository(db)
+
+	startDate := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+	endDate := time.Date(2023, 12, 31, 0, 0, 0, 0, time.UTC)
+
+	descriptions, err := repo.GetDistinctTransactionDescriptions(startDate, endDate)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	if len(descriptions) != 0 {
+		t.Errorf("expected empty slice, got slice with %d elements", len(descriptions))
+	}
+}
+
+func TestGetDistinctTransactionDescriptions_ExactStartAndEndDates(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("failed to connect to database: %v", err)
+	}
+
+	if err := db.AutoMigrate(&Transaction{}); err != nil {
+		t.Fatalf("failed to migrate database schema: %v", err)
+	}
+
+	repo := NewTransactionRepository(db)
+
+	startDate := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+	endDate := time.Date(2023, 12, 31, 23, 59, 59, 999999999, time.UTC)
+
+	// Seed the database with transactions exactly on start and end dates
+	transactions := []Transaction{
+		{Date: startDate, Description: "Start Date Transaction", Type: "Purchase", Amount: 50.00, NetAmount: 50.00, SettleDate: startDate},
+		{Date: endDate, Description: "End Date Transaction", Type: "Purchase", Amount: 100.00, NetAmount: 100.00, SettleDate: endDate},
+		{Date: time.Date(2023, 6, 15, 0, 0, 0, 0, time.UTC), Description: "Middle Transaction", Type: "Purchase", Amount: 75.00, NetAmount: 75.00, SettleDate: time.Date(2023, 6, 16, 0, 0, 0, 0, time.UTC)},
+	}
+	if err := db.Create(&transactions).Error; err != nil {
+		t.Fatalf("failed to seed database: %v", err)
+	}
+
+	descriptions, err := repo.GetDistinctTransactionDescriptions(startDate, endDate)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	expectedDescriptions := []string{"Start Date Transaction", "Middle Transaction", "End Date Transaction"}
+	if len(descriptions) != len(expectedDescriptions) {
+		t.Errorf("expected %d distinct descriptions, got %d", len(expectedDescriptions), len(descriptions))
+	}
+
+	for _, expected := range expectedDescriptions {
+		if !contains(descriptions, expected) {
+			t.Errorf("expected description '%s' not found in result", expected)
+		}
+	}
+}
+
+func TestGetDistinctTransactionDescriptions_AlphabeticalOrder(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("failed to connect to database: %v", err)
+	}
+
+	if err := db.AutoMigrate(&Transaction{}); err != nil {
+		t.Fatalf("failed to migrate database schema: %v", err)
+	}
+
+	repo := NewTransactionRepository(db)
+
+	// Seed the database with transactions having descriptions in non-alphabetical order
+	transactions := []Transaction{
+		{Date: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC), Description: "Zebra Store", Type: "Purchase", Amount: 50.00, NetAmount: 50.00, SettleDate: time.Date(2023, 1, 2, 0, 0, 0, 0, time.UTC)},
+		{Date: time.Date(2023, 1, 5, 0, 0, 0, 0, time.UTC), Description: "Apple Market", Type: "Purchase", Amount: 75.00, NetAmount: 75.00, SettleDate: time.Date(2023, 1, 6, 0, 0, 0, 0, time.UTC)},
+		{Date: time.Date(2023, 1, 10, 0, 0, 0, 0, time.UTC), Description: "Mango Shop", Type: "Purchase", Amount: 40.00, NetAmount: 40.00, SettleDate: time.Date(2023, 1, 11, 0, 0, 0, 0, time.UTC)},
+	}
+	if err := db.Create(&transactions).Error; err != nil {
+		t.Fatalf("failed to seed database: %v", err)
+	}
+
+	startDate := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+	endDate := time.Date(2023, 1, 31, 0, 0, 0, 0, time.UTC)
+
+	descriptions, err := repo.GetDistinctTransactionDescriptions(startDate, endDate)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	expectedOrder := []string{"Apple Market", "Mango Shop", "Zebra Store"}
+	if !reflect.DeepEqual(descriptions, expectedOrder) {
+		t.Errorf("descriptions not in alphabetical order. Expected %v, got %v", expectedOrder, descriptions)
+	}
+}
+
+func TestGetDistinctTransactionDescriptions_UnicodeCharacters(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("failed to connect to database: %v", err)
+	}
+
+	if err := db.AutoMigrate(&Transaction{}); err != nil {
+		t.Fatalf("failed to migrate database schema: %v", err)
+	}
+
+	repo := NewTransactionRepository(db)
+
+	// Seed the database with transactions containing Unicode characters
+	transactions := []Transaction{
+		{Date: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC), Description: "Café ☕", Type: "Purchase", Amount: 5.00, NetAmount: 5.00, SettleDate: time.Date(2023, 1, 2, 0, 0, 0, 0, time.UTC)},
+		{Date: time.Date(2023, 1, 5, 0, 0, 0, 0, time.UTC), Description: "Sushi 🍣", Type: "Purchase", Amount: 20.00, NetAmount: 20.00, SettleDate: time.Date(2023, 1, 6, 0, 0, 0, 0, time.UTC)},
+		{Date: time.Date(2023, 1, 10, 0, 0, 0, 0, time.UTC), Description: "Bücher 📚", Type: "Purchase", Amount: 30.00, NetAmount: 30.00, SettleDate: time.Date(2023, 1, 11, 0, 0, 0, 0, time.UTC)},
+	}
+	if err := db.Create(&transactions).Error; err != nil {
+		t.Fatalf("failed to seed database: %v", err)
+	}
+
+	startDate := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+	endDate := time.Date(2023, 1, 31, 0, 0, 0, 0, time.UTC)
+
+	descriptions, err := repo.GetDistinctTransactionDescriptions(startDate, endDate)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	expectedDescriptions := []string{"Café ☕", "Sushi 🍣", "Bücher 📚"}
+	if !reflect.DeepEqual(descriptions, expectedDescriptions) {
+		t.Errorf("expected descriptions %v, got %v", expectedDescriptions, descriptions)
+	}
+}
+
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
 }
