@@ -46,6 +46,35 @@ This app allows you to interact with your imported Chime transactions using AI. 
     - "What are my recurring subscriptions?"
     - "Show me my largest transactions in the past year."
 
+### Example Response
+
+```text
+Prompt: Where do I spend most of my money?  Give me the top 10 places in October
+
+Response:
+
+Based on the provided transaction information for October, 
+here are the top 10 places where you spent the most money:
+
+1. **Transfer to Credit Builder**: $1,167.47
+2. **Transfer to Chime Savings Account**: $1,166.32
+3. **Foursight**: $631.02
+4. **Transfer to Chase**: $525.00
+5. **Progressive**: $361.38
+6. **Clear Me**: $259.00
+7. **Verizon**: $245.47
+8. **Amazon**: $171.93
+9. **Les Schwab Tire Centers**: $157.00
+10. **Alaska Air**: $153.99
+
+Your highest spending was on transfers and savings, which 
+constitutes financial management actions rather than direct 
+purchasing of goods or services from typical vendors or service 
+providers; this is something to keep in mind when analyzing your 
+expenses critically for budget adjustments or identifying areas 
+where you could potentially reduce spending if necessary.
+```
+
 ---
 
 ## Roadmap
