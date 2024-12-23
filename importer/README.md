@@ -20,39 +20,46 @@ Your_Name_Checking_eStatement (2).pdf
 
 ## Converting Your Statements
 
-This program automatically converts your Chime PDF statements into plain text using `pdftotext`. It then parses the data and imports it into a SQLite database for analysis.
+This program automatically converts your Chime PDF statements into
+plain text using `pdftotext`. It then parses the data and imports
+it into a SQLite database for analysis.
 
 If `pdftotext` is not installed, the script will notify you.
 
 ### Installing `pdftotext`
 
 For most Linux distributions:
+
 ```bash
 sudo apt-get install poppler-utils
 ```
 
 On macOS (via Homebrew):
+
 ```bash
 brew install poppler
 ```
 
 On Windows:
-- Download and install Poppler from [https://blog.alivate.com.au/poppler-windows/](https://blog.alivate.com.au/poppler-windows/).
-- Add the `bin` folder containing `pdftotext.exe` to your PATH.
 
----
+- Download and install Poppler from [https://blog.alivate.com.au/poppler-windows/](https://blog.alivate.com.au/poppler-windows/).<!-- markdownlint-disable-line MD013 -->
+- Add the `bin` folder containing `pdftotext.exe` to your PATH.
 
 ## Building the Importer
 
-1. **Install Go**: Make sure you have Go installed. You can download it from [https://go.dev/dl/](https://go.dev/dl/).
+**Install Go**:
 
-2. **Clone the Repository**:
+Make sure you have Go installed. You can download it from [https://go.dev/dl/](https://go.dev/dl/).<!-- markdownlint-disable-line MD013 -->
+
+**Clone the Repository**:
+
 ```bash
 git clone <repository-url>
 cd chime-ai/importer
 ```
 
-3. **Build the Program**:
+**Build the Program**:
+
 ```bash
 go build -o importer
 ```
@@ -61,7 +68,8 @@ go build -o importer
 
 ## Running the Importer
 
-Once built, you can run the program and point it to the directory containing your Chime statements:
+Once built, you can run the program and point it to the directory
+containing your Chime statements:
 
 ```bash
 ./importer -dir /path/to/your/statements
@@ -78,7 +86,8 @@ The program will:
 
 ## Output
 
-- The transactions will be stored in a SQLite database named `transactions.db`.
+- The transactions will be stored in a SQLite database named
+`transactions.db`.
 - Each transaction includes:
   - Date
   - Description
@@ -91,7 +100,8 @@ The program will:
 
 ## Example Usage
 
-### Input Directory Structure:
+### Input Directory Structure
+
 ```plaintext
 /path/to/your/statements/
 ├── Your_Name_Checking_eStatement (1).pdf
@@ -99,17 +109,19 @@ The program will:
 ├── Your_Name_Checking_eStatement (3).pdf
 ```
 
-### Command:
+### Command
+
 ```bash
 ./importer -dir /path/to/your/statements
 ```
 
-### Output:
+### Example Output
+
 ```plaintext
 Found 3 PDF files for conversion.
-Converted Your_Name_Checking_eStatement (1).pdf to Your_Name_Checking_eStatement (1).txt
-Converted Your_Name_Checking_eStatement (2).pdf to Your_Name_Checking_eStatement (2).txt
-Converted Your_Name_Checking_eStatement (3).pdf to Your_Name_Checking_eStatement (3).txt
+Converted Your_Name_Checking_eStatement (1).pdf to Your_Name_Checking_eStatement (1).txt<!-- markdownlint-disable-line MD013 -->
+Converted Your_Name_Checking_eStatement (2).pdf to Your_Name_Checking_eStatement (2).txt<!-- markdownlint-disable-line MD013 -->
+Converted Your_Name_Checking_eStatement (3).pdf to Your_Name_Checking_eStatement (3).txt<!-- markdownlint-disable-line MD013 -->
 Processing Your_Name_Checking_eStatement (1).txt...
 Processing Your_Name_Checking_eStatement (2).txt...
 Processing Your_Name_Checking_eStatement (3).txt...
@@ -128,6 +140,5 @@ All files processed and cleaned up successfully!
 
 - Ensure that your PDF statements are formatted properly and contain structured text.
 - The program will skip duplicate transactions to avoid redundant entries.
-- The SQLite database can be queried using tools like DB Browser for SQLite or programmatically with any library supporting SQLite.
-
----
+- The SQLite database can be queried using tools like DB Browser for SQLite or
+programmatically with any library supporting SQLite.

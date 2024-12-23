@@ -28,15 +28,19 @@ Your_Name_Checking_eStatement (2).pdf
 
 ## Importing Your Statements
 
-The importer parses your Chime statements into a SQLite database for analysis. For details on setting up and running the importer, see the [README in the `importer` folder](./importer/README.md).
+The importer parses your Chime statements into a SQLite database for
+analysis. For details on setting up and running the importer,
+see the [README in the `importer` folder](./importer/README.md).
 
 ---
 
 ## Running the App
 
-This app allows you to interact with your imported Chime transactions using AI. Once you've set up your `transactions.db` using the importer:
+This app allows you to interact with your imported Chime transactions
+using AI. Once you've set up your `transactions.db` using the importer:
 
 1. **Start the AI Interface** (Coming Soon):
+
    ```bash
    ./chime-ai
    ```
@@ -82,14 +86,7 @@ where you could potentially reduce spending if necessary.
 - [x] Import Chime bank statements into SQLite
 - [x] Clean up parsed text files
 - [x] Implement DB repository functions
-- [ ] Add AI chat functionality for transaction queries
-- [ ] Add tool calling and open ended query building agent
+- [x] Add AI chat functionality for transaction queries
+- [x] Add tool calling and open ended query building agent
 - [ ] Improve error handling and data validation
 - [ ] Support for additional bank formats
-
----
-
-## License
-
-This project is licensed under the MIT License. See the LICENSE file for details.
-
