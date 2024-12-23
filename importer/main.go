@@ -2,13 +2,16 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"gorm.io/driver/sqlite"
@@ -27,32 +30,47 @@ type Transaction struct {
 }
 
 func main() {
-	// Initialize the database
+	// Accept directory path as a command-line argument
+	dir := flag.String("dir", "./importer/files", "Directory containing PDFs and text files")
+	flag.Parse()
+
 	db, err := initDB("transactions.db")
 	if err != nil {
-		panic(err)
+		log.Fatalf("Failed to initialize database: %v", err)
 	}
 
-	// Process transaction files
-	for i := 1; i <= 19; i++ {
-		filename := fmt.Sprintf("./importer/files/checking_%d.txt", i)
-		filename, _ = filepath.Abs(filename)
-		fmt.Printf("Processing file: %s\n", filename)
-		processFile(filename, db)
+	// Convert PDFs to text files if `pdftotext` is installed
+	if isCommandAvailable("pdftotext") {
+		log.Println("pdftotext found, converting PDFs to text...")
+		convertPDFsToText(*dir)
+	} else {
+		log.Println("pdftotext not found, skipping PDF conversion. Please install it to process PDFs.")
 	}
 
-	fmt.Println("All files processed successfully!")
+	files, err := filepath.Glob(filepath.Join(*dir, "*.txt"))
+	if err != nil {
+		log.Fatalf("Failed to list text files: %v", err)
+	}
+
+	if len(files) == 0 {
+		log.Println("No text files found for processing.")
+		return
+	}
+
+	log.Printf("Found %d text files for processing.", len(files))
+
+	processFilesConcurrently(files, db)
+	cleanupTxtFiles(files)
+	log.Println("All files processed and cleaned up successfully!")
 }
 
 // initDB initializes the database and creates the table if it doesn't exist
 func initDB(dbPath string) (*gorm.DB, error) {
-	// Connect to SQLite
 	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	// Auto-migrate the Transaction model
 	if err := db.AutoMigrate(&Transaction{}); err != nil {
 		return nil, fmt.Errorf("failed to migrate database schema: %w", err)
 	}
@@ -60,20 +78,58 @@ func initDB(dbPath string) (*gorm.DB, error) {
 	return db, nil
 }
 
+// isCommandAvailable checks if a command is available in the system
+func isCommandAvailable(cmd string) bool {
+	_, err := exec.LookPath(cmd)
+	return err == nil
+}
+
+// convertPDFsToText converts all PDFs in the given directory to text files
+func convertPDFsToText(dir string) {
+	files, err := filepath.Glob(filepath.Join(dir, "*.pdf"))
+	if err != nil {
+		log.Printf("Failed to list PDF files: %v", err)
+		return
+	}
+
+	for _, pdfFile := range files {
+		baseName := strings.TrimSuffix(filepath.Base(pdfFile), ".pdf")
+		txtFile := filepath.Join(dir, baseName+".txt")
+
+		cmd := exec.Command("pdftotext", "-layout", pdfFile, txtFile)
+		if err := cmd.Run(); err != nil {
+			log.Printf("Failed to convert %s to text: %v", pdfFile, err)
+		} else {
+			log.Printf("Converted %s to %s", pdfFile, txtFile)
+		}
+	}
+}
+
+// processFilesConcurrently processes multiple files in parallel
+func processFilesConcurrently(filenames []string, db *gorm.DB) {
+	var wg sync.WaitGroup
+
+	for _, filename := range filenames {
+		wg.Add(1)
+		go func(f string) {
+			defer wg.Done()
+			processFile(f, db)
+		}(filename)
+	}
+
+	wg.Wait()
+}
+
 // processFile parses a single transaction file and inserts data into the database
 func processFile(filename string, db *gorm.DB) {
 	file, err := os.Open(filename)
 	if err != nil {
-		fmt.Printf("Error opening file %s: %v\n", filename, err)
+		log.Printf("Error opening file %s: %v", filename, err)
 		return
 	}
-	defer func(file *os.File) {
-		err := file.Close()
-		if err != nil {
-			log.Printf("Error closing file %s: %v\n", filename, err)
-		}
-	}(file)
+	defer file.Close()
 
+	log.Printf("Processing file: %s", filename)
 	var transactions []Transaction
 	re := regexp.MustCompile(`^(\d{1,2}/\d{1,2}/\d{4})\s+(.*?)\s+(Transfer|Purchase|Direct Debit|ATM Withdrawal|Fee|Deposit|Round Up)\s+(-?\$\d+\.\d{2})\s+(-?\$\d+\.\d{2})\s+(\d{1,2}/\d{1,2}/\d{4})$`)
 
@@ -86,41 +142,36 @@ func processFile(filename string, db *gorm.DB) {
 			netAmount, _ := strconv.ParseFloat(strings.ReplaceAll(match[5], "$", ""), 64)
 
 			date, err := time.Parse("1/02/2006", match[1])
-
 			if err != nil {
-				fmt.Printf("Error parsing date: %v\n", err)
+				log.Printf("Error parsing date in file %s: %v", filename, err)
 				continue
 			}
 
 			settleDate, err := time.Parse("1/02/2006", match[6])
-
 			if err != nil {
-				fmt.Printf("Error parsing settlement date: %v\n", err)
+				log.Printf("Error parsing settlement date in file %s: %v", filename, err)
 				continue
 			}
 
 			transaction := Transaction{
 				Date:        date,
-				Description: match[2],
+				Description: strings.TrimSpace(match[2]),
 				Type:        match[3],
 				Amount:      amount,
 				NetAmount:   netAmount,
 				SettleDate:  settleDate,
 			}
 
-			// Check if the transaction already exists
 			var existing Transaction
 			if err := db.Where("date = ? AND description = ? AND amount = ? AND net_amount = ? AND settle_date = ?",
 				transaction.Date,
 				transaction.Description,
 				transaction.Amount,
 				transaction.NetAmount,
-				transaction.SettleDate,
-			).
+				transaction.SettleDate).
 				First(&existing).
 				Error; err == nil {
-
-				fmt.Printf("Duplicate transaction found, skipping: %v\n", transaction)
+				log.Printf("Duplicate transaction found, skipping: %+v", transaction)
 				continue
 			}
 
@@ -128,13 +179,29 @@ func processFile(filename string, db *gorm.DB) {
 		}
 	}
 
+	if err := scanner.Err(); err != nil {
+		log.Printf("Error reading file %s: %v", filename, err)
+		return
+	}
+
 	if len(transactions) > 0 {
 		if err := db.Create(&transactions).Error; err != nil {
-			fmt.Printf("Error inserting transactions: %v\n", err)
+			log.Printf("Error inserting transactions from file %s: %v", filename, err)
 		} else {
-			fmt.Printf("Inserted %d transactions from %s\n", len(transactions), filename)
+			log.Printf("Inserted %d transactions from %s", len(transactions), filename)
 		}
 	} else {
-		fmt.Printf("No transactions found in %s\n", filename)
+		log.Printf("No transactions found in %s", filename)
+	}
+}
+
+// cleanupTxtFiles removes all .txt files in the provided list
+func cleanupTxtFiles(files []string) {
+	for _, file := range files {
+		if err := os.Remove(file); err != nil {
+			log.Printf("Failed to delete %s: %v", file, err)
+		} else {
+			log.Printf("Deleted %s", file)
+		}
 	}
 }
