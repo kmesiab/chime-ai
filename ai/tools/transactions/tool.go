@@ -6,7 +6,8 @@ import (
 )
 
 const ToolName = "TransactionsTool"
-const ToolDescription = `Given the user's question, construct a sqlite query to retrieve the required data. 
+const ToolDescription = `Given the user's question, construct a sqlite query to retrieve a dataset to make
+an informed response
 		
 		The table schema is:
 		create table transactions
@@ -35,6 +36,9 @@ const ToolDescription = `Given the user's question, construct a sqlite query to 
 		10,2024-07-19 00:00:00+00:00,"Supermaven, Inc.",Purchase,-10,-10,2024-07-20 00:00:00+00:00
 		11,2024-07-19 00:00:00+00:00,"Notion Labs, Inc.",Purchase,-11.03,-11.03,2024-07-20 00:00:00+00:00
 	
+		Notes: 
+		Descriptions can vary despite being the same merchant.  When constructing queries, consider
+	    using flexible matching.
 `
 
 var toolParams = jsonschema.Definition{
