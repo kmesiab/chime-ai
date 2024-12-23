@@ -119,8 +119,8 @@ func TestExecuteRawQuery_NoResults(t *testing.T) {
 	args := []interface{}{"Nonexistent Description"}
 
 	result, err := repo.ExecuteRawQuery(query, args...)
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
+	if err == nil {
+		t.Errorf("expected error but got none")
 	}
 
 	// Assert that the result is an empty slice

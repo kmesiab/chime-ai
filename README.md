@@ -1,5 +1,12 @@
 # 🤑 Chime AI 🤖
 
+![Golang](https://img.shields.io/badge/Go-00add8.svg?labelColor=171e21&style=for-the-badge&logo=go)
+
+![Build](https://github.com/kmesiab/chime-ai/actions/workflows/go-build.yml/badge.svg)
+![Lint](https://github.com/kmesiab/chime-ai/actions/workflows/go-lint.yml/badge.svg)
+![Test](https://github.com/kmesiab/chime-ai/actions/workflows/go-test.yml/badge.svg)
+[![Go Report Card](https://goreportcard.com/badge/github.com/kmesiab/chime-ai)](https://goreportcard.com/report/github.com/kmesiab/equilibria)
+
 **Import your Chime bank statements in PDF format, then chat about them with AI.**
 
 _Note: This is a hacky personal project. Don't rely on this for important things..._
