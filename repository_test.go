@@ -501,9 +501,259 @@ func TestGetDistinctTransactionDescriptions_UnicodeCharacters(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 
-	expectedDescriptions := []string{"Café ☕", "Sushi 🍣", "Bücher 📚"}
+	// Expected descriptions should be in alphabetical order
+	expectedDescriptions := []string{"Bücher 📚", "Café ☕", "Sushi 🍣"}
 	if !reflect.DeepEqual(descriptions, expectedDescriptions) {
 		t.Errorf("expected descriptions %v, got %v", expectedDescriptions, descriptions)
+	}
+}
+
+func TestGetDistinctTransactionDescriptionsAndTotal_ValidData(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("failed to connect to database: %v", err)
+	}
+
+	if err := db.AutoMigrate(&Transaction{}); err != nil {
+		t.Fatalf("failed to migrate database schema: %v", err)
+	}
+
+	repo := NewTransactionRepository(db)
+
+	transactions := []Transaction{
+		{Date: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC), Description: "Grocery", NetAmount: 100.00},
+		{Date: time.Date(2023, 1, 5, 0, 0, 0, 0, time.UTC), Description: "Grocery", NetAmount: 200.00},
+		{Date: time.Date(2023, 1, 10, 0, 0, 0, 0, time.UTC), Description: "Gas", NetAmount: 50.00},
+	}
+	if err := db.Create(&transactions).Error; err != nil {
+		t.Fatalf("failed to seed database: %v", err)
+	}
+
+	startDate := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+	endDate := time.Date(2023, 1, 31, 0, 0, 0, 0, time.UTC)
+
+	results, err := repo.GetDistinctTransactionDescriptionsAndTotal(startDate, endDate)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	expectedResults := []DescriptionTotal{
+		{Description: "Grocery", TotalSpent: 300.00},
+		{Description: "Gas", TotalSpent: 50.00},
+	}
+
+	if len(*results) != len(expectedResults) {
+		t.Errorf("expected %d results, got %d", len(expectedResults), len(*results))
+		return
+	}
+
+	for _, expected := range expectedResults {
+		found := false
+		for _, actual := range *results {
+			if actual == expected {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expected result %v not found in actual results", expected)
+		}
+	}
+}
+
+func TestGetDistinctTransactionDescriptionsAndTotal_EmptyDatabase(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("failed to connect to database: %v", err)
+	}
+
+	if err := db.AutoMigrate(&Transaction{}); err != nil {
+		t.Fatalf("failed to migrate database schema: %v", err)
+	}
+
+	repo := NewTransactionRepository(db)
+
+	startDate := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+	endDate := time.Date(2023, 1, 31, 0, 0, 0, 0, time.UTC)
+
+	results, err := repo.GetDistinctTransactionDescriptionsAndTotal(startDate, endDate)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+		return
+	}
+
+	// Check for nil to avoid dereferencing a nil pointer
+	if results == nil || len(*results) != 0 {
+		t.Errorf("expected empty result, got %d", len(*results))
+	}
+}
+
+func TestGetDistinctTransactionDescriptionsAndTotal_SameStartAndEndDate(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("failed to connect to database: %v", err)
+	}
+
+	if err := db.AutoMigrate(&Transaction{}); err != nil {
+		t.Fatalf("failed to migrate database schema: %v", err)
+	}
+
+	repo := NewTransactionRepository(db)
+
+	transactionDate := time.Date(2023, 5, 20, 0, 0, 0, 0, time.UTC)
+	transactions := []Transaction{
+		{Date: transactionDate, Description: "Coffee Shop", NetAmount: 5.00},
+	}
+	if err := db.Create(&transactions).Error; err != nil {
+		t.Fatalf("failed to seed database: %v", err)
+	}
+
+	startDate := transactionDate
+	endDate := transactionDate
+
+	results, err := repo.GetDistinctTransactionDescriptionsAndTotal(startDate, endDate)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	expectedResults := []DescriptionTotal{
+		{Description: "Coffee Shop", TotalSpent: 5.00},
+	}
+	if !reflect.DeepEqual(*results, expectedResults) {
+		t.Errorf("expected %v, got %v", expectedResults, *results)
+	}
+}
+
+func TestGetDistinctTransactionDescriptionsAndTotal_DBConnectionLost(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("failed to connect to database: %v", err)
+	}
+
+	if err := db.AutoMigrate(&Transaction{}); err != nil {
+		t.Fatalf("failed to migrate database schema: %v", err)
+	}
+
+	repo := NewTransactionRepository(db)
+
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("failed to get generic database object: %v", err)
+	}
+	sqlDB.Close()
+
+	startDate := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+	endDate := time.Date(2023, 12, 31, 0, 0, 0, 0, time.UTC)
+
+	_, err = repo.GetDistinctTransactionDescriptionsAndTotal(startDate, endDate)
+	if err == nil {
+		t.Errorf("expected an error due to closed database connection, got nil")
+	}
+}
+
+func TestGetDistinctTransactionDescriptionsAndCount_ValidData(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("failed to connect to database: %v", err)
+	}
+
+	if err := db.AutoMigrate(&Transaction{}); err != nil {
+		t.Fatalf("failed to migrate database schema: %v", err)
+	}
+
+	repo := NewTransactionRepository(db)
+
+	transactions := []Transaction{
+		{Date: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC), Description: "Grocery", NetAmount: 100.00},
+		{Date: time.Date(2023, 1, 5, 0, 0, 0, 0, time.UTC), Description: "Grocery", NetAmount: 200.00},
+		{Date: time.Date(2023, 1, 10, 0, 0, 0, 0, time.UTC), Description: "Gas", NetAmount: 50.00},
+	}
+	if err := db.Create(&transactions).Error; err != nil {
+		t.Fatalf("failed to seed database: %v", err)
+	}
+
+	startDate := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+	endDate := time.Date(2023, 1, 31, 0, 0, 0, 0, time.UTC)
+
+	results, err := repo.GetDistinctTransactionDescriptionsAndCount(startDate, endDate)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	expectedResults := []DescriptionCount{
+		{Description: "Grocery", TotalTransactions: 2},
+		{Description: "Gas", TotalTransactions: 1},
+	}
+
+	if len(*results) != len(expectedResults) {
+		t.Errorf("expected %d results, got %d", len(expectedResults), len(*results))
+		return
+	}
+
+	for _, expected := range expectedResults {
+		found := false
+		for _, actual := range *results {
+			if actual == expected {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expected result %v not found in actual results", expected)
+		}
+	}
+}
+
+func TestGetDistinctTransactionDescriptionsAndCount_EmptyDatabase(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("failed to connect to database: %v", err)
+	}
+
+	if err := db.AutoMigrate(&Transaction{}); err != nil {
+		t.Fatalf("failed to migrate database schema: %v", err)
+	}
+
+	repo := NewTransactionRepository(db)
+
+	startDate := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+	endDate := time.Date(2023, 1, 31, 0, 0, 0, 0, time.UTC)
+
+	results, err := repo.GetDistinctTransactionDescriptionsAndCount(startDate, endDate)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+		return
+	}
+
+	if results == nil || len(*results) != 0 {
+		t.Errorf("expected empty result, got %d", len(*results))
+	}
+}
+
+func TestGetDistinctTransactionDescriptionsAndCount_DBConnectionLost(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("failed to connect to database: %v", err)
+	}
+
+	if err := db.AutoMigrate(&Transaction{}); err != nil {
+		t.Fatalf("failed to migrate database schema: %v", err)
+	}
+
+	repo := NewTransactionRepository(db)
+
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("failed to get generic database object: %v", err)
+	}
+	sqlDB.Close()
+
+	startDate := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+	endDate := time.Date(2023, 12, 31, 0, 0, 0, 0, time.UTC)
+
+	_, err = repo.GetDistinctTransactionDescriptionsAndCount(startDate, endDate)
+	if err == nil {
+		t.Errorf("expected an error due to closed database connection, got nil")
 	}
 }
 

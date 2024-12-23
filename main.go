@@ -31,15 +31,15 @@ func main() {
 	// Get a repository instance
 	repository := NewTransactionRepository(db)
 
-	startDate, _ := time.Parse("2006-01-02", "2024-03-24")
-	endDate, _ := time.Parse("2006-01-02", "2024-03-29")
+	startDate, _ := time.Parse("2006-01-02", "2023-01-01")
+	endDate, _ := time.Parse("2006-01-02", "2024-12-31")
 
 	printTransactionsByDateRange(repository, startDate, endDate)
 	printDistinctTransactionDescriptions(repository, startDate, endDate)
 }
 
 func printDistinctTransactionDescriptions(repository *TransactionRepository, startDate, endDate time.Time) {
-	descriptions, err := repository.GetDistinctTransactionDescriptions(startDate, endDate)
+	descriptions, err := repository.GetDistinctTransactionDescriptionsAndTotal(startDate, endDate)
 	if err != nil {
 		log.Printf("Error getting distinct transaction descriptions: %v\n", err)
 		return
@@ -48,8 +48,8 @@ func printDistinctTransactionDescriptions(repository *TransactionRepository, sta
 	fmt.Printf("Distinct transaction descriptions between %s and %s:\n",
 		startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
 
-	for _, description := range descriptions {
-		fmt.Println(description)
+	for _, d := range *descriptions {
+		fmt.Printf("%s\t%2f\n", d.Description, d.TotalSpent)
 	}
 }
 

@@ -12,3 +12,13 @@ type Transaction struct {
 	NetAmount   float64
 	SettleDate  time.Time
 }
+
+type DescriptionTotal struct {
+	Description string
+	TotalSpent  float64 `json:"total_spent"`
+}
+
+type DescriptionCount struct {
+	Description       string
+	TotalTransactions int `json:"total_transactions"`
+}

@@ -43,3 +43,29 @@ func (r *TransactionRepository) GetDistinctTransactionDescriptions(startDate, en
 	}
 	return descriptions, nil
 }
+
+func (r *TransactionRepository) GetDistinctTransactionDescriptionsAndTotal(startDate, endDate time.Time) (*[]DescriptionTotal, error) {
+	var results []DescriptionTotal
+
+	if err := r.db.Model(&Transaction{}).
+		Where("date BETWEEN ? AND ?", startDate, endDate).
+		Select("description, SUM(net_amount) as total_spent").
+		Group("description").
+		Scan(&results).Error; err != nil {
+		return nil, err
+	}
+	return &results, nil
+}
+
+func (r *TransactionRepository) GetDistinctTransactionDescriptionsAndCount(startDate, endDate time.Time) (*[]DescriptionCount, error) {
+	var results []DescriptionCount
+
+	if err := r.db.Model(&Transaction{}).
+		Where("date BETWEEN ? AND ?", startDate, endDate).
+		Select("description, COUNT(*) as total_transactions").
+		Group("description").
+		Scan(&results).Error; err != nil {
+		return nil, err
+	}
+	return &results, nil
+}
