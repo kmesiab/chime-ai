@@ -14,6 +14,12 @@ func NewTransactionRepository(db *gorm.DB) *TransactionRepository {
 	return &TransactionRepository{db: db}
 }
 
+func (r *TransactionRepository) ExecuteRawQuery(query string, args ...interface{}) ([]map[string]interface{}, error) {
+	var result []map[string]interface{}
+	err := r.db.Raw(query, args...).Scan(&result).Error
+	return result, err
+}
+
 func (r *TransactionRepository) GetTransactionsByDate(startDate, endDate time.Time) ([]Transaction, error) {
 	var transactions []Transaction
 	err := r.db.Where("date BETWEEN ? AND ?", startDate, endDate).Find(&transactions).Error
