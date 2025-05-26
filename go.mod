@@ -5,7 +5,7 @@ go 1.23
 require (
 	github.com/sashabaranov/go-openai v1.37.0
 	gorm.io/driver/sqlite v1.5.7
-	gorm.io/gorm v1.25.12
+	gorm.io/gorm v1.30.0
 )
 
 require (
